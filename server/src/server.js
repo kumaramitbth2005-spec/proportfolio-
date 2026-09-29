@@ -394,13 +394,15 @@ app.post('/api/chat/session', async (req, res, next) => {
         session: newSession.toObject()
       });
 
-      // Email owner if offline
-      if (adminSockets.size === 0 || true) { // Always email the owner so they have the email thread
+      // Email owner safely without blocking chat
+      try {
         const emailResult = await sendChatEmailToOwner(newSession, savedMsg);
         if (emailResult && emailResult.id) {
           savedMsg.emailMessageId = emailResult.id;
           await savedMsg.save();
         }
+      } catch (err) {
+        console.warn('Email notification warning:', err.message);
       }
     } else {
       io.to('admins').emit('chat:new-session', { session: newSession.toObject() });
@@ -483,11 +485,15 @@ app.post('/api/chat/session/:token/messages', chatMessageLimiter, async (req, re
       unreadForOwner: session.unreadForOwner
     });
 
-    // Always notify owner via email so they have the thread
-    const emailResult = await sendChatEmailToOwner(session, savedMsg);
-    if (emailResult && emailResult.id) {
-      savedMsg.emailMessageId = emailResult.id;
-      await savedMsg.save();
+    // Notify owner via email safely without blocking chat
+    try {
+      const emailResult = await sendChatEmailToOwner(session, saved);
+      if (emailResult && emailResult.id) {
+        saved.emailMessageId = emailResult.id;
+        await saved.save();
+      }
+    } catch (err) {
+      console.warn('Email notification warning:', err.message);
     }
 
     ok(res, { message: msgObj }, 201);
