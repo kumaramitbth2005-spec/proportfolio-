@@ -1,0 +1,1 @@
+{"name":"amit-portfolio","private":true,"version":"1.0.0","scripts":{"install:all":"npm --prefix client install && npm --prefix server install","dev":"npm run dev:client","dev:client":"npm --prefix client run dev","build":"npm run build:client","build:client":"npm --prefix client run build","dev:server":"npm --prefix server run dev","start":"npm --prefix server start"}}
