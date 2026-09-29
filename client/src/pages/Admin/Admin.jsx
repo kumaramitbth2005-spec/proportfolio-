@@ -1,10 +1,10 @@
 import {useEffect,useState} from 'react';
 import {io} from 'socket.io-client';
-import api from '../../services/api.js';
+import api, { SOCKET_ORIGIN } from '../../services/api.js';
 
 const resources=['profile','education','skills','projects','certificates','socials','resume','contact','chat'];
 const endpoints={contact:'/contact',chat:'/chat/sessions'};
-const socketOrigin=(import.meta.env.VITE_API_URL||'http://localhost:5000/api').replace(/\/api\/?$/,'');
+const socketOrigin=SOCKET_ORIGIN;
 
 export default function Admin(){
  const [user,setUser]=useState(null),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState('');

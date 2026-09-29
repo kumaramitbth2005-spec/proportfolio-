@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowUpRight, Github, Linkedin, Mail, ExternalLink, GraduationCap, Code2, Download, Send, Award, CheckCircle2, X, Sparkles, BookOpen, Layers, Cpu, Database, Layout, Terminal, Server, FileText, Check, Eye, UserCheck, ShieldCheck, Globe, Instagram, Facebook, Twitter } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import api from '../services/api.js';
+import api, { API_BASE_URL } from '../services/api.js';
 
 export function About({profile}){
   return (
@@ -632,9 +632,8 @@ export function Projects({items=[]}){
 
 export function Resume({resume}){
   const fallbackUrl = resume?.resumeUrl;
-  const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
-  const viewUrl = `${apiUrl}/resume/pdf`;
-  const downloadUrl = `${apiUrl}/resume/pdf?download=true`;
+  const viewUrl = `${API_BASE_URL}/resume/pdf`;
+  const downloadUrl = `${API_BASE_URL}/resume/pdf?download=true`;
   
   return (
     <section className="section resume-section" id="resume">

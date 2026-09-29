@@ -21,11 +21,26 @@ import { seedContent } from './utils/seed.js';
 
 const app = express();
 const server = http.createServer(app);
-const origins = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map(x => x.trim());
+const clientEnv = process.env.CLIENT_URL || 'http://localhost:5173';
+const configuredOrigins = clientEnv.split(',').map(x => x.trim().replace(/\/+$/, '')).filter(Boolean);
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  const cleanOrigin = origin.replace(/\/+$/, '');
+  if (configuredOrigins.includes('*') || configuredOrigins.includes(cleanOrigin)) return true;
+  if (/^https?:\/\/localhost(:\d+)?$/.test(cleanOrigin)) return true;
+  if (/^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(cleanOrigin)) return true;
+  if (/^https:\/\/[a-zA-Z0-9_.-]+\.vercel\.app$/.test(cleanOrigin)) return true;
+  if (/^https:\/\/[a-zA-Z0-9_.-]+\.onrender\.com$/.test(cleanOrigin)) return true;
+  return false;
+};
 
 const io = new Server(server, {
   cors: {
-    origin: origins,
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) callback(null, true);
+      else callback(new Error('Origin is not allowed by CORS.'));
+    },
     credentials: true
   }
 });
@@ -39,7 +54,10 @@ const broadcastPresence = () => {
 
 app.use(helmet());
 app.use(cors({
-  origin: (origin, cb) => !origin || origins.includes(origin) ? cb(null, true) : cb(new Error('Origin is not allowed by CORS.')),
+  origin: (origin, cb) => {
+    if (isOriginAllowed(origin)) cb(null, true);
+    else cb(new Error('Origin is not allowed by CORS.'));
+  },
   credentials: true
 }));
 app.use(express.json({ limit: '30kb' }));
@@ -84,31 +102,37 @@ for (const [path, { model, single }] of Object.entries(collections)) {
   if (path === 'resume') {
     router.get('/pdf', async (req, res, next) => {
       try {
-        const overleafUrl = process.env.OVERLEAF_READ_URL;
-        if (!overleafUrl) return res.status(503).json({ success: false, message: 'Overleaf Read-Only URL is not configured.' });
-        
-        // Remove trailing slash if any
-        const baseUrl = overleafUrl.endsWith('/') ? overleafUrl.slice(0, -1) : overleafUrl;
-        const pdfUrl = `${baseUrl}/output/output.pdf`;
-        
-        const fetchResponse = await fetch(pdfUrl);
-        if (!fetchResponse.ok) {
-          return res.status(502).json({ success: false, message: 'Failed to fetch resume from Overleaf.' });
+        const resumeDoc = isDb() ? await Resume.findOne().lean() : null;
+        const fallbackUrl = resumeDoc?.resumeUrl;
+        const overleafUrl = process.env.OVERLEAF_READ_URL?.trim();
+
+        if (overleafUrl) {
+          if (overleafUrl.toLowerCase().endsWith('.pdf')) {
+            try {
+              const fetchResponse = await fetch(overleafUrl);
+              if (fetchResponse.ok) {
+                const arrayBuffer = await fetchResponse.arrayBuffer();
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                if (req.query.download) {
+                  res.setHeader('Content-Disposition', 'attachment; filename="Amit-Kumar-Resume.pdf"');
+                } else {
+                  res.setHeader('Content-Disposition', 'inline; filename="Amit-Kumar-Resume.pdf"');
+                }
+                return res.send(Buffer.from(arrayBuffer));
+              }
+            } catch (err) {
+              console.warn('Direct PDF fetch failed:', err.message);
+            }
+          }
+          return res.redirect(overleafUrl);
         }
-        
-        const arrayBuffer = await fetchResponse.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); // Always fetch latest
-        
-        if (req.query.download) {
-          res.setHeader('Content-Disposition', 'attachment; filename="Amit-Kumar-Resume.pdf"');
-        } else {
-          res.setHeader('Content-Disposition', 'inline; filename="Amit-Kumar-Resume.pdf"');
+
+        if (fallbackUrl) {
+          return res.redirect(fallbackUrl);
         }
-        
-        res.send(buffer);
+
+        return res.status(404).json({ success: false, message: 'Resume is not yet configured.' });
       } catch (e) {
         next(e);
       }
